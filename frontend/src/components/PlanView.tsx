@@ -32,7 +32,8 @@ export function PlanView({ plan, onPlanChange }: Props) {
 
   async function loadResources(id: number) {
     try {
-      setResourceMap((current) => ({ ...current, [id]: await api.getResources(id) }));
+      const resources = await api.getResources(id);
+      setResourceMap((current) => ({ ...current, [id]: resources }));
     } catch {
       setError("Resources could not be loaded. Check your API keys and try again.");
     }
