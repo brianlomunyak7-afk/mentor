@@ -22,6 +22,10 @@ def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value
+
+
 def hash_password(password: str) -> str:
     return password_hasher.hash(password)
 
@@ -107,7 +111,7 @@ def require_csrf(request: Request) -> None:
 def authenticate(email: str, password: str, request: Request, db: Session) -> tuple[User, str, str]:
     user = db.scalar(select(User).where(User.email == normalize_email(email)))
     now = datetime.now(timezone.utc)
-    if user is None or (user.locked_until and user.locked_until > now):
+    if user is None or (user.locked_until and _utc(user.locked_until) > now):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if user.password_hash is None or not verify_password(user.password_hash, password):
         user.failed_login_attempts += 1

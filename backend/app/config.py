@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     web_search_provider: str | None = None
     web_search_api_key: str | None = None
     api_rate_limit_per_minute: int = 60
-    jwt_secret: str = "change-me-in-local-env"
+    jwt_secret: str = "local-development-secret-change-this-please"
     access_token_minutes: int = 15
     refresh_token_days: int = 30
     secure_cookies: bool = False
