@@ -42,3 +42,33 @@ class TutorAnswerLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class LearningPlan(Base):
+    __tablename__ = "learning_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    goal: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Lesson(Base):
+    __tablename__ = "lessons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plan_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    module_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    lesson_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    goal: Mapped[str] = mapped_column(Text, nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    examples_json: Mapped[str] = mapped_column(Text, nullable=False)
+    practice_task: Mapped[str] = mapped_column(Text, nullable=False)
+    quiz_json: Mapped[str] = mapped_column(Text, nullable=False)
+    estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="not_started")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
