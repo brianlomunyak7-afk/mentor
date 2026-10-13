@@ -7,7 +7,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - tutorai-data:/app
+      - tutorai-data:/data
+    environment:
+      DATABASE_URL: sqlite:////data/tutorai.db
 
   frontend:
     build:

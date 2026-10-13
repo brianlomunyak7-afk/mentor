@@ -1,4 +1,4 @@
-.PHONY: setup migrate backend frontend run test
+.PHONY: setup migrate backend frontend run test eval
 
 setup:
 	python3 -m venv backend/.venv
@@ -20,3 +20,7 @@ run:
 test:
 	backend/.venv/bin/pytest backend/tests
 	cd frontend && npm test
+
+eval:
+	@echo "Usage: make eval PROVIDER=anthropic API_KEY=your-key"
+	backend/.venv/bin/python backend/evals/run_evaluation.py --provider $(PROVIDER) --api-key $(API_KEY)
