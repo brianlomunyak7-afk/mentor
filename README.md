@@ -13,6 +13,8 @@ This phase provides:
 - One-question-at-a-time onboarding and editable profile endpoints.
 - A provider-neutral async LLM interface with Anthropic Claude and Google
   Gemini adapters.
+- TutorAI system prompt, contextual chat orchestration, answer logging, and
+  wrong-answer reports.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -55,7 +57,7 @@ GEMINI_API_KEY=your-key
 ```
 
 The adapters are not called by the onboarding routes yet; tutor orchestration
-will be added in the next phase.
+is available through `POST /api/chat`.
 
 Initialize the Phase 3 database after setup:
 
@@ -88,6 +90,11 @@ Phase 3 API endpoints:
 - `POST /api/onboarding/answers` — save one answer and advance one step.
 - `GET /api/profile` — return the saved learner profile.
 - `PUT /api/profile` — edit profile fields and preferences.
+- `POST /api/chat` — ask TutorAI a question with optional conversation history.
+- `POST /api/chat/{answer_id}/report` — report a potentially wrong answer.
+
+Chat answers are logged locally with their provider and model metadata. Source
+citation support will be connected when the resource finder is implemented.
 
 ## Test
 
