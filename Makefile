@@ -1,4 +1,4 @@
-.PHONY: setup migrate backend frontend run test eval
+.PHONY: setup migrate seed backend frontend run test eval
 
 setup:
 	python3 -m venv backend/.venv
@@ -7,6 +7,9 @@ setup:
 
 migrate:
 	backend/.venv/bin/alembic -c backend/alembic.ini upgrade head
+
+seed:
+	backend/.venv/bin/python -m scripts.seed
 
 backend:
 	backend/.venv/bin/uvicorn app.main:app --app-dir backend --reload --host 0.0.0.0 --port 8000
