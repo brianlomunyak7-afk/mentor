@@ -72,3 +72,20 @@ class Lesson(Base):
     estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="not_started")
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Resource(Base):
+    __tablename__ = "resources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lesson_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    url: Mapped[str] = mapped_column(String(2000), nullable=False)
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    credibility_score: Mapped[float] = mapped_column(nullable=False)
+    relevance_score: Mapped[float] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

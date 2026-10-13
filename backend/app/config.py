@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-3-5-sonnet-latest"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.0-flash"
+    youtube_api_key: str | None = None
+    web_search_provider: str | None = None
+    web_search_api_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
