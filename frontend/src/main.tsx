@@ -18,6 +18,17 @@ function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("tutorai-theme") === "dark");
   const [error, setError] = useState("");
 
+  async function exportData() {
+    const data = await api.exportData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "tutorai-export.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("tutorai-theme", dark ? "dark" : "light");
@@ -53,7 +64,10 @@ function App() {
     <div className="app-shell workspace">
       <header className="topbar">
         <div><p className="eyebrow">Your local learning coach</p><strong className="brand">TutorAI</strong></div>
-        <button className="theme-button" onClick={() => setDark((value) => !value)} aria-label="Toggle color theme">{dark ? "Light" : "Dark"} mode</button>
+        <div className="header-actions">
+          <button className="theme-button" onClick={() => void exportData()}>Export</button>
+          <button className="theme-button" onClick={() => setDark((value) => !value)} aria-label="Toggle color theme">{dark ? "Light" : "Dark"} mode</button>
+        </div>
       </header>
       <Dashboard profile={profile} plan={plan} streakDays={progress?.streak_days} weakArea={progress?.weak_area} />
       <main className="workspace-grid">

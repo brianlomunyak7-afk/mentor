@@ -21,6 +21,8 @@ This phase provides:
   checks and ranked results.
 - Responsive React workspace with onboarding, chat, plan progress, themes,
   and browser read-aloud support.
+- Local notes, bookmarks, quiz attempts, progress summaries, JSON export, and
+  basic in-memory API rate limiting.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -120,6 +122,16 @@ Phase 3 API endpoints:
 - `PATCH /api/lessons/{lesson_id}/progress` — update lesson progress.
 - `GET /api/lessons/{lesson_id}/resources` — search and rank up to three
   checked resources for a lesson.
+- `POST /api/notes` and `GET /api/notes` — save and list learner notes.
+- `POST /api/bookmarks` and `GET /api/bookmarks` — save and list resources.
+- `POST /api/lessons/{lesson_id}/quiz` — submit a lesson quiz attempt.
+- `GET /api/progress` — return completion, streak, and weak-area summary.
+- `GET /api/export` — download local plans, lessons, notes, and bookmarks as
+  JSON.
+
+Non-health API requests are rate limited in memory using
+`API_RATE_LIMIT_PER_MINUTE`. This is intended for a single local instance, not
+for a multi-process production deployment.
 
 Chat answers are logged locally with their provider and model metadata. Source
 citation support will be connected when the resource finder is implemented.

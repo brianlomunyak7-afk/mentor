@@ -74,6 +74,11 @@ export function PlanView({ plan, onPlanChange }: Props) {
                 <button className="text-button" onClick={() => loadResources(lesson.id)}>Find resources</button>
               </div>
               {resourceMap[lesson.id]?.map((resource) => <a className="resource-link" href={resource.url} target="_blank" rel="noreferrer" key={resource.url}><strong>{resource.title}</strong><span>{resource.source} · {resource.reason}</span></a>)}
+              {resourceMap[lesson.id]?.map((resource) => (
+                <button className="text-button" key={`${resource.url}-bookmark`} onClick={() => void api.createBookmark({ title: resource.title, url: resource.url, source: resource.source })}>
+                  Bookmark resource
+                </button>
+              ))}
             </div>
           </article>
         ))}
