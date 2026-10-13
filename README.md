@@ -10,6 +10,8 @@ This phase provides:
 
 - A FastAPI backend with a health endpoint.
 - A local SQLite learner profile with Alembic migrations.
+- PostgreSQL-ready configuration, connection pooling, user records, and
+  ownership columns for the multi-user migration.
 - One-question-at-a-time onboarding and editable profile endpoints.
 - A provider-neutral async LLM interface with Anthropic Claude and Google
   Gemini adapters.
@@ -28,7 +30,8 @@ This phase provides:
 - A `.env.example` file for provider and resource credentials.
 - A Makefile for setup and local commands.
 
-TutorAI stores onboarding answers locally in SQLite. Preferences are stored as
+TutorAI stores onboarding answers locally in SQLite for quick tests and uses
+PostgreSQL in the containerized runtime. Preferences are stored as
 adjustable profile data, not as permanent learning-style labels. It supports
 teachers and mentors; it does not replace them. AI can be wrong, so verify
 important information with official sources or a qualified teacher.
@@ -91,7 +94,20 @@ Initialize the Phase 3 database after setup:
 
 ```bash
 make migrate
+make seed
 ```
+
+`make seed` creates the local admin and demo learner records:
+
+```text
+admin@tutorai.local
+demo@tutorai.local
+```
+
+Authentication and request-derived user scoping are the next add-on phase.
+The ownership columns and scoped-query helper are now present, but the
+existing pre-auth routes remain in their original compatibility mode until
+authentication is wired in.
 
 ## Run locally
 
@@ -206,7 +222,7 @@ Never commit `.env` or real API keys.
 ```mermaid
 flowchart LR
   Browser[React + Vite UI] --> API[FastAPI API]
-  API --> DB[(SQLite)]
+  API --> DB[(PostgreSQL)]
   API --> Tutor[Tutor service]
   Tutor --> Provider[Claude or Gemini adapter]
   API --> Resources[Resource service]
