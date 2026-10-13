@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,12 +9,16 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.llm.base import LLMProviderError
 from app.llm.factory import create_llm_provider
-from app.models import LearnerProfile, TutorAnswerLog
+from app.models import LearningPlan, LearnerProfile, Lesson, TutorAnswerLog
+from app.plan import generate_plan
 from app.schemas import (
     ChatRequest,
     ChatResponse,
     LearnerProfileResponse,
     LearnerProfileUpdate,
+    LearningPlanResponse,
+    LessonProgressUpdate,
+    LessonResponse,
     OnboardingAnswer,
     WrongAnswerReport,
 )
@@ -68,6 +73,32 @@ def _get_profile(db: Session) -> LearnerProfile:
             detail="Learner profile has not been created",
         )
     return profile
+
+
+def _lesson_response(lesson: Lesson) -> LessonResponse:
+    return LessonResponse(
+        id=lesson.id,
+        module_number=lesson.module_number,
+        lesson_number=lesson.lesson_number,
+        title=lesson.title,
+        goal=lesson.goal,
+        explanation=lesson.explanation,
+        examples=json.loads(lesson.examples_json),
+        practice_task=lesson.practice_task,
+        quiz=json.loads(lesson.quiz_json),
+        estimated_minutes=lesson.estimated_minutes,
+        status=lesson.status,
+    )
+
+
+def _plan_response(plan: LearningPlan, lessons: list[Lesson]) -> LearningPlanResponse:
+    return LearningPlanResponse(
+        id=plan.id,
+        title=plan.title,
+        goal=plan.goal,
+        status=plan.status,
+        lessons=[_lesson_response(lesson) for lesson in lessons],
+    )
 
 
 @router.get("/onboarding/questions")
@@ -208,3 +239,99 @@ async def report_wrong_answer(
         )
     log.reported_wrong = True
     db.commit()
+
+
+@router.post("/plans", response_model=LearningPlanResponse, tags=["learning plan"])
+async def create_learning_plan(
+    db: Session = Depends(get_db),
+) -> LearningPlanResponse:
+    profile = _get_profile(db)
+    try:
+        provider = create_llm_provider()
+        generated = await generate_plan(provider, profile)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TutorAI could not create a valid learning plan",
+        ) from error
+    except LLMProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The configured model provider could not create a plan",
+        ) from error
+
+    plan = LearningPlan(
+        title=generated.title,
+        goal=profile.goal or profile.learning_topic or "Learning goal",
+        status="active",
+    )
+    db.add(plan)
+    db.flush()
+    lessons: list[Lesson] = []
+    for module_number, module in enumerate(generated.modules, start=1):
+        for lesson_number, lesson in enumerate(module.lessons, start=1):
+            stored = Lesson(
+                plan_id=plan.id,
+                module_number=module_number,
+                lesson_number=lesson_number,
+                title=lesson.title,
+                goal=lesson.goal,
+                explanation=lesson.explanation,
+                examples_json=json.dumps(lesson.examples),
+                practice_task=lesson.practice_task,
+                quiz_json=json.dumps(lesson.quiz),
+                estimated_minutes=lesson.estimated_minutes,
+                status="not_started",
+            )
+            db.add(stored)
+            lessons.append(stored)
+    db.commit()
+    for lesson in lessons:
+        db.refresh(lesson)
+    db.refresh(plan)
+    return _plan_response(plan, lessons)
+
+
+@router.get("/plans/latest", response_model=LearningPlanResponse, tags=["learning plan"])
+async def get_latest_learning_plan(
+    db: Session = Depends(get_db),
+) -> LearningPlanResponse:
+    plan = db.scalar(select(LearningPlan).order_by(LearningPlan.id.desc()))
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No learning plan has been created",
+        )
+    lessons = list(
+        db.scalars(
+            select(Lesson)
+            .where(Lesson.plan_id == plan.id)
+            .order_by(Lesson.module_number, Lesson.lesson_number)
+        )
+    )
+    return _plan_response(plan, lessons)
+
+
+@router.patch(
+    "/lessons/{lesson_id}/progress",
+    response_model=LessonResponse,
+    tags=["learning plan"],
+)
+async def update_lesson_progress(
+    lesson_id: int,
+    update: LessonProgressUpdate,
+    db: Session = Depends(get_db),
+) -> LessonResponse:
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lesson was not found",
+        )
+    lesson.status = update.status
+    lesson.completed_at = (
+        datetime.now(timezone.utc) if update.status == "completed" else None
+    )
+    db.commit()
+    db.refresh(lesson)
+    return _lesson_response(lesson)
