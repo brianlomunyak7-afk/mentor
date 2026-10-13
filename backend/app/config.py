@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite:///./tutorai.db"
+    database_url: str = "postgresql+psycopg://tutorai:tutorai@localhost:5432/tutorai"
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
     cors_origins: str = "http://localhost:5173"
     llm_provider: str = "anthropic"
     anthropic_api_key: str | None = None
