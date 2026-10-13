@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     youtube_api_key: str | None = None
     web_search_provider: str | None = None
     web_search_api_key: str | None = None
+    api_rate_limit_per_minute: int = 60
 
     model_config = SettingsConfigDict(
         env_file=".env",

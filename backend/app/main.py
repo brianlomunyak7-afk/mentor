@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as learner_router
 from app.config import get_settings
+from app.rate_limit import InMemoryRateLimiter, rate_limit_middleware
 
 app = FastAPI(
     title="TutorAI API",
@@ -15,6 +16,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.middleware("http")(
+    rate_limit_middleware(
+        InMemoryRateLimiter(get_settings().api_rate_limit_per_minute)
+    )
 )
 app.include_router(learner_router)
 
