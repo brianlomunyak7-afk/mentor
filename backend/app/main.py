@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import router as learner_router
+from app.auth_api import router as auth_router
 from app.config import get_settings
 from app.rate_limit import InMemoryRateLimiter, rate_limit_middleware
 
@@ -23,6 +24,7 @@ app.middleware("http")(
     )
 )
 app.include_router(learner_router)
+app.include_router(auth_router)
 
 
 @app.get("/health", tags=["system"])
