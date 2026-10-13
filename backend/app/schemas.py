@@ -133,3 +133,28 @@ class ProgressSummary(BaseModel):
     completion_percent: int
     streak_days: int
     weak_area: str | None
+
+
+class SignupRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=12, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AuthUserResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    email_verified: bool
+
+
+class SessionResponse(BaseModel):
+    id: int
+    user_agent: str | None
+    ip_address: str | None
+    created_at: datetime
+    expires_at: datetime
