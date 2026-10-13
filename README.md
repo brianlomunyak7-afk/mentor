@@ -80,9 +80,10 @@ The resource finder never scrapes or downloads videos. It only returns URLs
 received from the official API or configured search results, checks each link,
 and drops links that are unavailable.
 
-The frontend uses browser speech synthesis for read-aloud when available. Voice
-input support and richer lesson quiz interactions are planned for a later
-phase.
+The frontend uses browser speech synthesis for read-aloud and browser speech
+recognition for voice input when supported by the browser. These APIs are
+optional and the text controls remain available when a browser does not
+support them.
 
 Initialize the Phase 3 database after setup:
 

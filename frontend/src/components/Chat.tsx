@@ -3,12 +3,25 @@ import { FormEvent, useState } from "react";
 import { api } from "../api";
 
 type Message = { role: "user" | "assistant"; content: string };
+type RecognitionEvent = { results: { [index: number]: { [index: number]: { transcript: string } } } };
+type Recognition = {
+  lang: string;
+  interimResults: boolean;
+  onresult: ((event: RecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  start: () => void;
+};
+type RecognitionWindow = Window & {
+  SpeechRecognition?: new () => Recognition;
+  webkitSpeechRecognition?: new () => Recognition;
+};
 
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [listening, setListening] = useState(false);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -32,6 +45,29 @@ export function Chat() {
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    }
+
+    function listen() {
+      const speechWindow = window as RecognitionWindow;
+      const Recognition =
+        speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+      if (!Recognition) {
+        setError("Voice input is not supported by this browser.");
+        return;
+      }
+      const recognition = new Recognition();
+      recognition.lang = navigator.language;
+      recognition.interimResults = false;
+      recognition.onresult = (event) => {
+        setInput(event.results[0][0].transcript);
+        setListening(false);
+      };
+      recognition.onerror = () => {
+        setListening(false);
+        setError("Voice input could not be captured.");
+      };
+      setListening(true);
+      recognition.start();
     }
   }
 
@@ -61,6 +97,7 @@ export function Chat() {
       <form className="chat-form" onSubmit={send}>
         <label className="sr-only" htmlFor="chat-input">Message TutorAI</label>
         <textarea id="chat-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="What would you like to understand?" rows={2} />
+        <button type="button" className="secondary-button" onClick={listen} disabled={busy || listening}>{listening ? "Listening..." : "Voice input"}</button>
         <button className="primary-button" disabled={busy || !input.trim()}>Send</button>
       </form>
     </section>
