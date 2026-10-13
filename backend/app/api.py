@@ -10,6 +10,7 @@ from app.database import get_db
 from app.llm.base import LLMProviderError
 from app.llm.factory import create_llm_provider
 from app.models import LearningPlan, LearnerProfile, Lesson, TutorAnswerLog
+from app.models import Resource
 from app.plan import generate_plan
 from app.schemas import (
     ChatRequest,
@@ -19,10 +20,12 @@ from app.schemas import (
     LearningPlanResponse,
     LessonProgressUpdate,
     LessonResponse,
+    ResourceResponse,
     OnboardingAnswer,
     WrongAnswerReport,
 )
 from app.tutor import answer_question
+from app.resources import ResourceSearchError, find_resources
 
 router = APIRouter(prefix="/api", tags=["learner"])
 
@@ -335,3 +338,55 @@ async def update_lesson_progress(
     db.commit()
     db.refresh(lesson)
     return _lesson_response(lesson)
+
+
+@router.get(
+    "/lessons/{lesson_id}/resources",
+    response_model=list[ResourceResponse],
+    tags=["resources"],
+)
+async def get_lesson_resources(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+) -> list[ResourceResponse]:
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lesson was not found",
+        )
+    profile = _get_profile(db)
+    try:
+        candidates = await find_resources(lesson, profile)
+    except ResourceSearchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Resource search is temporarily unavailable",
+        ) from error
+
+    db.query(Resource).filter(Resource.lesson_id == lesson.id).delete()
+    stored: list[Resource] = []
+    for candidate in candidates:
+        resource = Resource(
+            lesson_id=lesson.id,
+            title=candidate.title,
+            url=candidate.url,
+            source=candidate.source,
+            duration_seconds=candidate.duration_seconds,
+            reason=candidate.reason,
+            credibility_score=candidate.credibility_score,
+            relevance_score=candidate.relevance_score,
+        )
+        db.add(resource)
+        stored.append(resource)
+    db.commit()
+    return [
+        ResourceResponse(
+            title=item.title,
+            url=item.url,
+            source=item.source,
+            duration_seconds=item.duration_seconds,
+            reason=item.reason,
+        )
+        for item in stored
+    ]
