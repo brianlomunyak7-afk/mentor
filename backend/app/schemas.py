@@ -57,3 +57,29 @@ class ChatResponse(BaseModel):
 
 class WrongAnswerReport(BaseModel):
     reason: str | None = Field(default=None, max_length=2000)
+
+
+class LessonResponse(BaseModel):
+    id: int
+    module_number: int
+    lesson_number: int
+    title: str
+    goal: str
+    explanation: str
+    examples: list[str]
+    practice_task: str
+    quiz: list[str]
+    estimated_minutes: int
+    status: str
+
+
+class LearningPlanResponse(BaseModel):
+    id: int
+    title: str
+    goal: str
+    status: str
+    lessons: list[LessonResponse]
+
+
+class LessonProgressUpdate(BaseModel):
+    status: Literal["not_started", "in_progress", "completed"]
