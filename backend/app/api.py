@@ -6,12 +6,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import LearnerProfile
+from app.llm.base import LLMProviderError
+from app.llm.factory import create_llm_provider
+from app.models import LearnerProfile, TutorAnswerLog
 from app.schemas import (
+    ChatRequest,
+    ChatResponse,
     LearnerProfileResponse,
     LearnerProfileUpdate,
     OnboardingAnswer,
+    WrongAnswerReport,
 )
+from app.tutor import answer_question
 
 router = APIRouter(prefix="/api", tags=["learner"])
 
@@ -143,3 +149,62 @@ async def update_profile(
     db.commit()
     db.refresh(profile)
     return _profile_response(profile)
+
+
+@router.post("/chat", response_model=ChatResponse, tags=["tutor"])
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+) -> ChatResponse:
+    try:
+        provider = create_llm_provider()
+        answer = await answer_question(
+            provider,
+            db.scalar(select(LearnerProfile).order_by(LearnerProfile.id)),
+            request.history,
+            request.message,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TutorAI is not configured with a valid model provider",
+        ) from error
+    except LLMProviderError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The configured model provider could not answer right now",
+        ) from error
+
+    log = TutorAnswerLog(
+        user_message=request.message,
+        assistant_message=answer,
+        provider=provider.provider_name,
+        model=provider.model_name,
+        sources_json="[]",
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return ChatResponse(
+        answer_id=log.id,
+        message=answer,
+        provider=provider.provider_name,
+        model=provider.model_name,
+        sources=[],
+    )
+
+
+@router.post("/chat/{answer_id}/report", status_code=status.HTTP_204_NO_CONTENT)
+async def report_wrong_answer(
+    answer_id: int,
+    report: WrongAnswerReport,
+    db: Session = Depends(get_db),
+) -> None:
+    log = db.get(TutorAnswerLog, answer_id)
+    if log is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tutor answer was not found",
+        )
+    log.reported_wrong = True
+    db.commit()
