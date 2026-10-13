@@ -83,3 +83,11 @@ class LearningPlanResponse(BaseModel):
 
 class LessonProgressUpdate(BaseModel):
     status: Literal["not_started", "in_progress", "completed"]
+
+
+class ResourceResponse(BaseModel):
+    title: str
+    url: str
+    source: str
+    duration_seconds: int | None
+    reason: str
