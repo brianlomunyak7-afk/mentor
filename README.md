@@ -19,6 +19,8 @@ This phase provides:
   quizzes, and lesson progress.
 - Official YouTube Data API and configurable web resource search with link
   checks and ranked results.
+- Responsive React workspace with onboarding, chat, plan progress, themes,
+  and browser read-aloud support.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -75,6 +77,10 @@ WEB_SEARCH_API_KEY=your-tavily-key
 The resource finder never scrapes or downloads videos. It only returns URLs
 received from the official API or configured search results, checks each link,
 and drops links that are unavailable.
+
+The frontend uses browser speech synthesis for read-aloud when available. Voice
+input support and richer lesson quiz interactions are planned for a later
+phase.
 
 Initialize the Phase 3 database after setup:
 
