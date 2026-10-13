@@ -4,7 +4,7 @@ TutorAI is a local-first AI tutor and mentor. It will learn how a learner
 prefers to study, create an adaptive learning plan, find cited resources, and
 track progress.
 
-## Phase 2 foundation
+## Current release
 
 This phase provides:
 
@@ -25,11 +25,13 @@ This phase provides:
   basic in-memory API rate limiting.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
-- A `.env.example` file for future provider and resource credentials.
+- A `.env.example` file for provider and resource credentials.
 - A Makefile for setup and local commands.
 
 TutorAI stores onboarding answers locally in SQLite. Preferences are stored as
-adjustable profile data, not as permanent learning-style labels.
+adjustable profile data, not as permanent learning-style labels. It supports
+teachers and mentors; it does not replace them. AI can be wrong, so verify
+important information with official sources or a qualified teacher.
 
 ## Setup
 
@@ -46,7 +48,8 @@ make setup
 cp .env.example .env
 ```
 
-No API keys are needed to run the local foundation without model calls.
+No API keys are needed to run the health endpoint, onboarding, notes, and
+local progress features without model or resource calls.
 
 To use the Phase 4 model providers, set `LLM_PROVIDER` and the matching API
 key in `.env`. The provider factory rejects missing keys and unsupported
@@ -64,8 +67,7 @@ LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-key
 ```
 
-The adapters are not called by the onboarding routes yet; tutor orchestration
-is available through `POST /api/chat`.
+Tutor orchestration is available through `POST /api/chat`.
 
 Resource search uses the official YouTube Data API v3 and Tavily for web
 results. Configure them in `.env`:
@@ -147,10 +149,89 @@ at least one quiz question, and an estimated duration.
 make test
 ```
 
-## Planned architecture
+## Accuracy evaluation
+
+The evaluation set contains 30 questions with known answers in
+[backend/evals/questions.json](./backend/evals/questions.json). Run one
+provider at a time; the script prints every response and an accuracy summary.
+It makes real provider calls, so use a test key and expect provider charges.
+
+```bash
+make eval PROVIDER=anthropic API_KEY=your-anthropic-key
+make eval PROVIDER=gemini API_KEY=your-gemini-key
+```
+
+The evaluator uses simple normalized answer matching. It is a regression
+signal, not proof that a model is always accurate.
+
+## Docker Compose
+
+After creating `.env`, run:
+
+```bash
+docker compose up --build
+```
+
+The application remains available at the same local URLs. SQLite data is kept
+in the `tutorai-data` named volume.
+
+## Phone access on the same Wi-Fi
+
+1. Find the computer's LAN address, for example with `hostname -I` on Linux.
+2. Start the development servers with the existing `0.0.0.0` host settings.
+3. On the phone, open `http://COMPUTER_LAN_IP:5173`.
+4. Allow ports 5173 and 8000 through the computer firewall if needed.
+
+Do not expose the app to the public internet without adding authentication,
+HTTPS, and a production-grade rate limiter.
+
+## Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `LLM_PROVIDER` | `anthropic` or `gemini` |
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `GEMINI_API_KEY` | Gemini API key |
+| `YOUTUBE_API_KEY` | Official YouTube Data API v3 key |
+| `WEB_SEARCH_PROVIDER` | Currently `tavily` |
+| `WEB_SEARCH_API_KEY` | Web search provider key |
+| `DATABASE_URL` | Local SQLite connection |
+| `CORS_ORIGINS` | Allowed frontend origins |
+| `API_RATE_LIMIT_PER_MINUTE` | Local request limit |
+
+Never commit `.env` or real API keys.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Browser[React + Vite UI] --> API[FastAPI API]
+  API --> DB[(SQLite)]
+  API --> Tutor[Tutor service]
+  Tutor --> Provider[Claude or Gemini adapter]
+  API --> Resources[Resource service]
+  Resources --> YouTube[YouTube Data API v3]
+  Resources --> Web[Tavily search API]
+```
+
+## Troubleshooting
+
+- **API unavailable:** run `make backend` and check `http://localhost:8000/health`.
+- **Onboarding repeats:** run `make migrate` and confirm `.env` points to the
+  expected SQLite file.
+- **Tutor returns 503:** set the API key matching `LLM_PROVIDER`.
+- **No resources:** configure YouTube and/or web-search credentials; empty
+  results are reported rather than guessed.
+- **Phone cannot connect:** use the computer LAN IP, not `localhost`, and open
+  ports 5173 and 8000 in the firewall.
+- **Docker data reset:** inspect or preserve the `tutorai-data` volume before
+  removing containers.
+
+## Roadmap
 
 The backend will expose versioned API routes and services for learner
-profiles, plans, lessons, resources, quizzes, progress, notes, and exports.
-The frontend will consume those routes through a typed API client. SQLite will
-keep local learner data on the user's machine, while configured model APIs will
-receive only the context required for a tutor response.
+- Rich interactive quiz grading and spaced-repetition scheduling.
+- Better persisted conversation history and source citations in chat.
+- Authentication for shared or multi-user deployments.
+- Production-grade distributed rate limiting and observability.
+- More browser/device compatibility testing for speech APIs.
