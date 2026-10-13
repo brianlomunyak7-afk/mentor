@@ -17,6 +17,8 @@ This phase provides:
   wrong-answer reports.
 - Persisted learning plans with modules, structured lessons, practice tasks,
   quizzes, and lesson progress.
+- Official YouTube Data API and configurable web resource search with link
+  checks and ranked results.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -61,6 +63,19 @@ GEMINI_API_KEY=your-key
 The adapters are not called by the onboarding routes yet; tutor orchestration
 is available through `POST /api/chat`.
 
+Resource search uses the official YouTube Data API v3 and Tavily for web
+results. Configure them in `.env`:
+
+```env
+YOUTUBE_API_KEY=your-google-cloud-key
+WEB_SEARCH_PROVIDER=tavily
+WEB_SEARCH_API_KEY=your-tavily-key
+```
+
+The resource finder never scrapes or downloads videos. It only returns URLs
+received from the official API or configured search results, checks each link,
+and drops links that are unavailable.
+
 Initialize the Phase 3 database after setup:
 
 ```bash
@@ -97,6 +112,8 @@ Phase 3 API endpoints:
 - `POST /api/plans` — generate and store a learner-specific roadmap.
 - `GET /api/plans/latest` — retrieve the latest roadmap and its lessons.
 - `PATCH /api/lessons/{lesson_id}/progress` — update lesson progress.
+- `GET /api/lessons/{lesson_id}/resources` — search and rank up to three
+  checked resources for a lesson.
 
 Chat answers are logged locally with their provider and model metadata. Source
 citation support will be connected when the resource finder is implemented.
