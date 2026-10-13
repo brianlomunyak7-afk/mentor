@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from fastapi.responses import Response
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,8 +10,16 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.llm.base import LLMProviderError
 from app.llm.factory import create_llm_provider
-from app.models import LearningPlan, LearnerProfile, Lesson, TutorAnswerLog
-from app.models import Resource
+from app.models import (
+    Bookmark,
+    LearningPlan,
+    LearnerProfile,
+    Lesson,
+    Note,
+    QuizAttempt,
+    Resource,
+    TutorAnswerLog,
+)
 from app.plan import generate_plan
 from app.schemas import (
     ChatRequest,
@@ -21,11 +30,19 @@ from app.schemas import (
     LessonProgressUpdate,
     LessonResponse,
     ResourceResponse,
+    BookmarkRequest,
+    BookmarkResponse,
+    NoteRequest,
+    NoteResponse,
+    ProgressSummary,
+    QuizResult,
+    QuizSubmission,
     OnboardingAnswer,
     WrongAnswerReport,
 )
 from app.tutor import answer_question
 from app.resources import ResourceSearchError, find_resources
+from app.export import export_learning_data_json
 
 router = APIRouter(prefix="/api", tags=["learner"])
 
@@ -390,3 +407,126 @@ async def get_lesson_resources(
         )
         for item in stored
     ]
+
+
+@router.post("/notes", response_model=NoteResponse, tags=["notes"])
+async def create_note(note: NoteRequest, db: Session = Depends(get_db)) -> NoteResponse:
+    stored = Note(**note.model_dump())
+    db.add(stored)
+    db.commit()
+    db.refresh(stored)
+    return NoteResponse.model_validate(stored, from_attributes=True)
+
+
+@router.get("/notes", response_model=list[NoteResponse], tags=["notes"])
+async def list_notes(db: Session = Depends(get_db)) -> list[NoteResponse]:
+    notes = db.scalars(select(Note).order_by(Note.updated_at.desc())).all()
+    return [NoteResponse.model_validate(note, from_attributes=True) for note in notes]
+
+
+@router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["notes"])
+async def delete_note(note_id: int, db: Session = Depends(get_db)) -> None:
+    note = db.get(Note, note_id)
+    if note is None:
+        raise HTTPException(status_code=404, detail="Note was not found")
+    db.delete(note)
+    db.commit()
+
+
+@router.post("/bookmarks", response_model=BookmarkResponse, tags=["bookmarks"])
+async def create_bookmark(
+    bookmark: BookmarkRequest,
+    db: Session = Depends(get_db),
+) -> BookmarkResponse:
+    stored = Bookmark(**bookmark.model_dump())
+    db.add(stored)
+    db.commit()
+    db.refresh(stored)
+    return BookmarkResponse.model_validate(stored, from_attributes=True)
+
+
+@router.get("/bookmarks", response_model=list[BookmarkResponse], tags=["bookmarks"])
+async def list_bookmarks(db: Session = Depends(get_db)) -> list[BookmarkResponse]:
+    bookmarks = db.scalars(select(Bookmark).order_by(Bookmark.created_at.desc())).all()
+    return [
+        BookmarkResponse.model_validate(bookmark, from_attributes=True)
+        for bookmark in bookmarks
+    ]
+
+
+@router.delete(
+    "/bookmarks/{bookmark_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["bookmarks"],
+)
+async def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)) -> None:
+    bookmark = db.get(Bookmark, bookmark_id)
+    if bookmark is None:
+        raise HTTPException(status_code=404, detail="Bookmark was not found")
+    db.delete(bookmark)
+    db.commit()
+
+
+@router.post(
+    "/lessons/{lesson_id}/quiz",
+    response_model=QuizResult,
+    tags=["learning plan"],
+)
+async def submit_quiz(
+    lesson_id: int,
+    submission: QuizSubmission,
+    db: Session = Depends(get_db),
+) -> QuizResult:
+    lesson = db.get(Lesson, lesson_id)
+    if lesson is None:
+        raise HTTPException(status_code=404, detail="Lesson was not found")
+    questions = json.loads(lesson.quiz_json)
+    total = len(questions)
+    score = min(len(submission.answers), total)
+    feedback = (
+        "Strong work. Keep going and revisit this lesson later."
+        if score == total
+        else "This topic may need another explanation. Review the examples and try again."
+    )
+    attempt = QuizAttempt(
+        lesson_id=lesson.id,
+        score=score,
+        total=total,
+        feedback=feedback,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return QuizResult(
+        attempt_id=attempt.id,
+        score=score,
+        total=total,
+        feedback=feedback,
+    )
+
+
+@router.get("/progress", response_model=ProgressSummary, tags=["progress"])
+async def get_progress(db: Session = Depends(get_db)) -> ProgressSummary:
+    lessons = list(db.scalars(select(Lesson)))
+    completed = sum(lesson.status == "completed" for lesson in lessons)
+    attempts = list(db.scalars(select(QuizAttempt).order_by(QuizAttempt.created_at.desc())))
+    weak_area = None
+    if attempts and attempts[0].score < attempts[0].total:
+        lesson = db.get(Lesson, attempts[0].lesson_id)
+        weak_area = lesson.title if lesson else None
+    return ProgressSummary(
+        lessons_completed=completed,
+        lessons_total=len(lessons),
+        completion_percent=round(completed / len(lessons) * 100) if lessons else 0,
+        streak_days=1 if completed else 0,
+        weak_area=weak_area,
+    )
+
+
+@router.get("/export", tags=["progress"])
+async def export_data(db: Session = Depends(get_db)) -> Response:
+    return Response(
+        content=export_learning_data_json(db),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="tutorai-export.json"'},
+    )
