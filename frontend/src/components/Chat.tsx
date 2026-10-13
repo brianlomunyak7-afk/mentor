@@ -46,29 +46,29 @@ export function Chat() {
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
     }
+  }
 
-    function listen() {
-      const speechWindow = window as RecognitionWindow;
-      const Recognition =
-        speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-      if (!Recognition) {
-        setError("Voice input is not supported by this browser.");
-        return;
-      }
-      const recognition = new Recognition();
-      recognition.lang = navigator.language;
-      recognition.interimResults = false;
-      recognition.onresult = (event) => {
-        setInput(event.results[0][0].transcript);
-        setListening(false);
-      };
-      recognition.onerror = () => {
-        setListening(false);
-        setError("Voice input could not be captured.");
-      };
-      setListening(true);
-      recognition.start();
+  function listen() {
+    const speechWindow = window as RecognitionWindow;
+    const Recognition =
+      speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setError("Voice input is not supported by this browser.");
+      return;
     }
+    const recognition = new Recognition();
+    recognition.lang = navigator.language;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      setInput(event.results[0][0].transcript);
+      setListening(false);
+    };
+    recognition.onerror = () => {
+      setListening(false);
+      setError("Voice input could not be captured.");
+    };
+    setListening(true);
+    recognition.start();
   }
 
   return (
