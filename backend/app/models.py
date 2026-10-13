@@ -27,3 +27,18 @@ class LearnerProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class TutorAnswerLog(Base):
+    __tablename__ = "tutor_answer_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    assistant_message: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    model: Mapped[str] = mapped_column(String(150), nullable=False)
+    sources_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    reported_wrong: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
