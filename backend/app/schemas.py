@@ -30,3 +30,30 @@ class LearnerProfileResponse(LearnerProfileUpdate):
 class OnboardingAnswer(BaseModel):
     step: int = Field(ge=0, le=20)
     answer: str | list[str] = Field(min_length=1)
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=10000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=10000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=30)
+
+
+class SourceCitation(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    url: str = Field(min_length=1, max_length=2000)
+
+
+class ChatResponse(BaseModel):
+    answer_id: int
+    message: str
+    provider: str
+    model: str
+    sources: list[SourceCitation]
+
+
+class WrongAnswerReport(BaseModel):
+    reason: str | None = Field(default=None, max_length=2000)
