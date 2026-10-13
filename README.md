@@ -15,6 +15,8 @@ This phase provides:
   Gemini adapters.
 - TutorAI system prompt, contextual chat orchestration, answer logging, and
   wrong-answer reports.
+- Persisted learning plans with modules, structured lessons, practice tasks,
+  quizzes, and lesson progress.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -92,9 +94,16 @@ Phase 3 API endpoints:
 - `PUT /api/profile` — edit profile fields and preferences.
 - `POST /api/chat` — ask TutorAI a question with optional conversation history.
 - `POST /api/chat/{answer_id}/report` — report a potentially wrong answer.
+- `POST /api/plans` — generate and store a learner-specific roadmap.
+- `GET /api/plans/latest` — retrieve the latest roadmap and its lessons.
+- `PATCH /api/lessons/{lesson_id}/progress` — update lesson progress.
 
 Chat answers are logged locally with their provider and model metadata. Source
 citation support will be connected when the resource finder is implemented.
+
+Learning plans are validated before storage. Each generated lesson must include
+a goal, plain-language explanation, two or three examples, a practice task,
+at least one quiz question, and an estimated duration.
 
 ## Test
 
