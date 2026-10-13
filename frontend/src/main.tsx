@@ -6,13 +6,15 @@ import { Chat } from "./components/Chat";
 import { Dashboard } from "./components/Dashboard";
 import { Onboarding } from "./components/Onboarding";
 import { PlanView } from "./components/PlanView";
-import type { LearningPlan, OnboardingQuestion, Profile } from "./types";
+import { Notes } from "./components/Notes";
+import type { LearningPlan, OnboardingQuestion, Profile, ProgressSummary } from "./types";
 import "./styles.css";
 
 function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [question, setQuestion] = useState<OnboardingQuestion | null>(null);
   const [plan, setPlan] = useState<LearningPlan | null>(null);
+  const [progress, setProgress] = useState<ProgressSummary | null>(null);
   const [dark, setDark] = useState(() => localStorage.getItem("tutorai-theme") === "dark");
   const [error, setError] = useState("");
 
@@ -29,6 +31,7 @@ function App() {
         if (currentQuestion.complete) {
           setProfile(await api.getProfile());
           setPlan(await api.getPlan().catch(() => null));
+          setProgress(await api.getProgress().catch(() => null));
         }
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "The API is unavailable.");
@@ -52,11 +55,12 @@ function App() {
         <div><p className="eyebrow">Your local learning coach</p><strong className="brand">TutorAI</strong></div>
         <button className="theme-button" onClick={() => setDark((value) => !value)} aria-label="Toggle color theme">{dark ? "Light" : "Dark"} mode</button>
       </header>
-      <Dashboard profile={profile} plan={plan} />
+      <Dashboard profile={profile} plan={plan} streakDays={progress?.streak_days} weakArea={progress?.weak_area} />
       <main className="workspace-grid">
         <PlanView plan={plan} onPlanChange={setPlan} />
         <Chat />
       </main>
+      <Notes />
     </div>
   );
 }

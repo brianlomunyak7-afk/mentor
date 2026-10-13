@@ -57,3 +57,28 @@ export type ChatResponse = {
   model: string;
   sources: Resource[];
 };
+
+export type Note = {
+  id: number;
+  title: string;
+  content: string;
+  lesson_id: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Bookmark = {
+  id: number;
+  title: string;
+  url: string;
+  source: string;
+  created_at: string;
+};
+
+export type ProgressSummary = {
+  lessons_completed: number;
+  lessons_total: number;
+  completion_percent: number;
+  streak_days: number;
+  weak_area: string | null;
+};

@@ -42,7 +42,7 @@ textarea { width: 100%; resize: vertical; padding: .85rem 1rem; border: 1px soli
 .dashboard-value, .dashboard-label { display: block; }
 .dashboard-value { font-size: 1.25rem; font-weight: 800; }
 .dashboard-label { margin-top: .25rem; color: #1e40af; font-size: .8rem; }
-.workspace-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 1rem; align-items: start; }
+.workspace-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 1rem; align-items: start; margin-bottom: 1rem; }
 .progress-track { height: .45rem; margin: 1rem 0; overflow: hidden; border-radius: 1rem; background: #dbeafe; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: #2563eb; }
 .lesson-list { display: grid; gap: .75rem; }
@@ -69,6 +69,12 @@ summary { cursor: pointer; color: #2563eb; font-weight: 700; }
 .empty-state { align-self: center; text-align: center; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 code { padding: .15rem .3rem; border-radius: .3rem; background: #e2e8f0; }
+.note-form { display: grid; gap: .6rem; }
+.note-form input { padding: .7rem .85rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: #f8fafc; color: inherit; }
+.notes-list { display: grid; gap: .6rem; margin-top: 1rem; }
+.notes-list article { padding: .75rem; border-radius: .65rem; background: #f1f5f9; }
+.notes-list p { margin: .35rem 0 0; color: #64748b; white-space: pre-wrap; }
+:root[data-theme="dark"] .note-form input, :root[data-theme="dark"] .notes-list article { border-color: #475569; background: #334155; }
 @media (max-width: 800px) {
   .workspace-grid { grid-template-columns: 1fr; }
   .chat-panel { position: static; }

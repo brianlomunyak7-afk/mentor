@@ -4,6 +4,9 @@ import type {
   Lesson,
   OnboardingQuestion,
   Profile,
+  Bookmark,
+  Note,
+  ProgressSummary,
   Resource,
 } from "./types";
 
@@ -45,4 +48,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
+  getProgress: () => request<ProgressSummary>("/api/progress"),
+  getNotes: () => request<Note[]>("/api/notes"),
+  createNote: (title: string, content: string) =>
+    request<Note>("/api/notes", {
+      method: "POST",
+      body: JSON.stringify({ title, content }),
+    }),
+  getBookmarks: () => request<Bookmark[]>("/api/bookmarks"),
+  createBookmark: (bookmark: Omit<Bookmark, "id" | "created_at">) =>
+    request<Bookmark>("/api/bookmarks", {
+      method: "POST",
+      body: JSON.stringify(bookmark),
+    }),
+  exportData: () => request<unknown>("/api/export"),
 };
