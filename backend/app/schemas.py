@@ -91,3 +91,45 @@ class ResourceResponse(BaseModel):
     source: str
     duration_seconds: int | None
     reason: str
+
+
+class NoteRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    content: str = Field(min_length=1, max_length=20000)
+    lesson_id: int | None = Field(default=None, ge=1)
+
+
+class NoteResponse(NoteRequest):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class BookmarkRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    url: str = Field(min_length=1, max_length=2000)
+    source: str = Field(min_length=1, max_length=50)
+
+
+class BookmarkResponse(BookmarkRequest):
+    id: int
+    created_at: datetime
+
+
+class QuizSubmission(BaseModel):
+    answers: list[str] = Field(min_length=1, max_length=20)
+
+
+class QuizResult(BaseModel):
+    attempt_id: int
+    score: int
+    total: int
+    feedback: str
+
+
+class ProgressSummary(BaseModel):
+    lessons_completed: int
+    lessons_total: int
+    completion_percent: int
+    streak_days: int
+    weak_area: str | None
