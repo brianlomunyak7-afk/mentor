@@ -1,4 +1,5 @@
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -25,3 +26,17 @@ def test_app():
     yield app
     app.dependency_overrides.clear()
     Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+async def authenticated_client(test_app):
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/api/auth/signup",
+            json={"email": "test@example.com", "password": "a-strong-password"},
+        )
+        assert response.status_code == 201
+        yield client

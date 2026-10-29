@@ -2,7 +2,7 @@ import httpx
 
 from app.config import Settings
 from app.database import get_db
-from app.models import LearnerProfile, Lesson
+from app.models import LearnerProfile, Lesson, User
 from app.resources import ResourceCandidate, find_resources
 
 
@@ -47,7 +47,11 @@ async def test_resource_search_uses_api_results_and_drops_broken_links() -> None
     assert any("youtube/v3/search" in call for call in calls)
 
 
-async def test_resources_route_returns_checked_candidates(test_app, monkeypatch) -> None:
+async def test_resources_route_returns_checked_candidates(
+    test_app,
+    authenticated_client,
+    monkeypatch,
+) -> None:
     candidate = ResourceCandidate(
         title="Python guide",
         url="https://docs.example.test/python",
@@ -64,8 +68,10 @@ async def test_resources_route_returns_checked_candidates(test_app, monkeypatch)
     monkeypatch.setattr("app.api.find_resources", fake_find_resources)
     db_generator = test_app.dependency_overrides[get_db]()
     db = next(db_generator)
-    db.add(LearnerProfile(learning_topic="Python", language="English"))
+    user = db.query(User).filter(User.email == "test@example.com").one()
+    db.add(LearnerProfile(user_id=user.id, learning_topic="Python", language="English"))
     lesson = Lesson(
+        user_id=user.id,
         plan_id=1,
         module_number=1,
         lesson_number=1,
@@ -82,13 +88,7 @@ async def test_resources_route_returns_checked_candidates(test_app, monkeypatch)
     db.commit()
     db.refresh(lesson)
 
-    from httpx import ASGITransport, AsyncClient
-
-    async with AsyncClient(
-        transport=ASGITransport(app=test_app),
-        base_url="http://test",
-    ) as client:
-        response = await client.get("/api/lessons/1/resources")
+    response = await authenticated_client.get(f"/api/lessons/{lesson.id}/resources")
 
     assert response.status_code == 200
     assert response.json()[0]["url"] == candidate.url

@@ -30,37 +30,29 @@ def test_sanitize_model_text_removes_control_characters() -> None:
     assert sanitize_model_text("  safe\x00 answer  ") == "safe answer"
 
 
-async def test_chat_reports_missing_provider_configuration(test_app, monkeypatch) -> None:
+async def test_chat_reports_missing_provider_configuration(authenticated_client, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.api.create_llm_provider",
         lambda: (_ for _ in ()).throw(ValueError("missing key")),
     )
-    async with AsyncClient(
-        transport=ASGITransport(app=test_app),
-        base_url="http://test",
-    ) as client:
-        response = await client.post(
-            "/api/chat",
-            json={"message": "Hello"},
-        )
+    response = await authenticated_client.post(
+        "/api/chat",
+        json={"message": "Hello"},
+    )
     assert response.status_code == 503
 
 
-async def test_chat_logs_answer_and_supports_report(test_app, monkeypatch) -> None:
+async def test_chat_logs_answer_and_supports_report(authenticated_client, monkeypatch) -> None:
     monkeypatch.setattr("app.api.create_llm_provider", lambda: FakeProvider())
-    async with AsyncClient(
-        transport=ASGITransport(app=test_app),
-        base_url="http://test",
-    ) as client:
-        response = await client.post(
-            "/api/chat",
-            json={"message": "Explain loops"},
-        )
-        answer_id = response.json()["answer_id"]
-        report = await client.post(
-            f"/api/chat/{answer_id}/report",
-            json={"reason": "This was unclear"},
-        )
+    response = await authenticated_client.post(
+        "/api/chat",
+        json={"message": "Explain loops"},
+    )
+    answer_id = response.json()["answer_id"]
+    report = await authenticated_client.post(
+        f"/api/chat/{answer_id}/report",
+        json={"reason": "This was unclear"},
+    )
     assert response.status_code == 200
     assert response.json()["message"].startswith("A loop")
     assert report.status_code == 204

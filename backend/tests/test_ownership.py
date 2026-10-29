@@ -3,6 +3,7 @@ from sqlalchemy import select
 
 from app.models import Note, User
 from app.ownership import owned_query
+from httpx import ASGITransport, AsyncClient
 
 
 def test_owned_query_cannot_return_another_users_data(test_app) -> None:
@@ -25,3 +26,32 @@ def test_owned_query_cannot_return_another_users_data(test_app) -> None:
     ).all()
 
     assert [note.title for note in visible] == ["First"]
+
+
+async def test_notes_api_isolates_users(test_app) -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=test_app),
+        base_url="http://test",
+    ) as client:
+        first = await client.post(
+            "/api/auth/signup",
+            json={"email": "first-api@example.test", "password": "a-strong-password"},
+        )
+        assert first.status_code == 201
+        created = await client.post(
+            "/api/notes",
+            json={"title": "Private", "content": "First user's note"},
+        )
+        assert created.status_code == 200
+        csrf = client.cookies["csrf_token"]
+        await client.post("/api/auth/logout", headers={"X-CSRF-Token": csrf})
+
+        second = await client.post(
+            "/api/auth/signup",
+            json={"email": "second-api@example.test", "password": "a-strong-password"},
+        )
+        assert second.status_code == 201
+        notes = await client.get("/api/notes")
+
+    assert notes.status_code == 200
+    assert notes.json() == []

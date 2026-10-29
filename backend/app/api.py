@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.auth import get_current_user
 from app.llm.base import LLMProviderError
 from app.llm.factory import create_llm_provider
 from app.models import (
@@ -19,6 +20,7 @@ from app.models import (
     QuizAttempt,
     Resource,
     TutorAnswerLog,
+    User,
 )
 from app.plan import generate_plan
 from app.schemas import (
@@ -85,8 +87,12 @@ def _profile_response(profile: LearnerProfile) -> LearnerProfileResponse:
     )
 
 
-def _get_profile(db: Session) -> LearnerProfile:
-    profile = db.scalar(select(LearnerProfile).order_by(LearnerProfile.id))
+def _get_profile(db: Session, user_id: int) -> LearnerProfile:
+    profile = db.scalar(
+        select(LearnerProfile)
+        .where(LearnerProfile.user_id == user_id)
+        .order_by(LearnerProfile.id)
+    )
     if profile is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -122,8 +128,15 @@ def _plan_response(plan: LearningPlan, lessons: list[Lesson]) -> LearningPlanRes
 
 
 @router.get("/onboarding/questions")
-async def get_onboarding_question(db: Session = Depends(get_db)) -> dict[str, Any]:
-    profile = db.scalar(select(LearnerProfile).order_by(LearnerProfile.id))
+async def get_onboarding_question(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    profile = db.scalar(
+        select(LearnerProfile)
+        .where(LearnerProfile.user_id == user.id)
+        .order_by(LearnerProfile.id)
+    )
     step = profile.onboarding_step if profile else 0
     return {
         "step": step,
@@ -136,10 +149,19 @@ async def get_onboarding_question(db: Session = Depends(get_db)) -> dict[str, An
 async def submit_onboarding_answer(
     answer: OnboardingAnswer,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LearnerProfileResponse:
-    profile = db.scalar(select(LearnerProfile).order_by(LearnerProfile.id))
+    profile = db.scalar(
+        select(LearnerProfile)
+        .where(LearnerProfile.user_id == user.id)
+        .order_by(LearnerProfile.id)
+    )
     if profile is None:
-        profile = LearnerProfile(language="English", preference_data="{}")
+        profile = LearnerProfile(
+            user_id=user.id,
+            language="English",
+            preference_data="{}",
+        )
         db.add(profile)
         db.flush()
 
@@ -181,16 +203,20 @@ async def submit_onboarding_answer(
 
 
 @router.get("/profile", response_model=LearnerProfileResponse)
-async def get_profile(db: Session = Depends(get_db)) -> LearnerProfileResponse:
-    return _profile_response(_get_profile(db))
+async def get_profile(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> LearnerProfileResponse:
+    return _profile_response(_get_profile(db, user.id))
 
 
 @router.put("/profile", response_model=LearnerProfileResponse)
 async def update_profile(
     updates: LearnerProfileUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LearnerProfileResponse:
-    profile = _get_profile(db)
+    profile = _get_profile(db, user.id)
     values = updates.model_dump(exclude_unset=True)
     preferences = values.pop("preferences", None)
     for field, value in values.items():
@@ -206,12 +232,17 @@ async def update_profile(
 async def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ChatResponse:
     try:
         provider = create_llm_provider()
         answer = await answer_question(
             provider,
-            db.scalar(select(LearnerProfile).order_by(LearnerProfile.id)),
+            db.scalar(
+                select(LearnerProfile)
+                .where(LearnerProfile.user_id == user.id)
+                .order_by(LearnerProfile.id)
+            ),
             request.history,
             request.message,
         )
@@ -227,6 +258,7 @@ async def chat(
         ) from error
 
     log = TutorAnswerLog(
+        user_id=user.id,
         user_message=request.message,
         assistant_message=answer,
         provider=provider.provider_name,
@@ -250,8 +282,14 @@ async def report_wrong_answer(
     answer_id: int,
     report: WrongAnswerReport,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> None:
-    log = db.get(TutorAnswerLog, answer_id)
+    log = db.scalar(
+        select(TutorAnswerLog).where(
+            TutorAnswerLog.id == answer_id,
+            TutorAnswerLog.user_id == user.id,
+        )
+    )
     if log is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -264,8 +302,9 @@ async def report_wrong_answer(
 @router.post("/plans", response_model=LearningPlanResponse, tags=["learning plan"])
 async def create_learning_plan(
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LearningPlanResponse:
-    profile = _get_profile(db)
+    profile = _get_profile(db, user.id)
     try:
         provider = create_llm_provider()
         generated = await generate_plan(provider, profile)
@@ -281,6 +320,7 @@ async def create_learning_plan(
         ) from error
 
     plan = LearningPlan(
+        user_id=user.id,
         title=generated.title,
         goal=profile.goal or profile.learning_topic or "Learning goal",
         status="active",
@@ -291,6 +331,7 @@ async def create_learning_plan(
     for module_number, module in enumerate(generated.modules, start=1):
         for lesson_number, lesson in enumerate(module.lessons, start=1):
             stored = Lesson(
+                user_id=user.id,
                 plan_id=plan.id,
                 module_number=module_number,
                 lesson_number=lesson_number,
@@ -315,8 +356,13 @@ async def create_learning_plan(
 @router.get("/plans/latest", response_model=LearningPlanResponse, tags=["learning plan"])
 async def get_latest_learning_plan(
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LearningPlanResponse:
-    plan = db.scalar(select(LearningPlan).order_by(LearningPlan.id.desc()))
+    plan = db.scalar(
+        select(LearningPlan)
+        .where(LearningPlan.user_id == user.id)
+        .order_by(LearningPlan.id.desc())
+    )
     if plan is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -325,7 +371,7 @@ async def get_latest_learning_plan(
     lessons = list(
         db.scalars(
             select(Lesson)
-            .where(Lesson.plan_id == plan.id)
+            .where(Lesson.plan_id == plan.id, Lesson.user_id == user.id)
             .order_by(Lesson.module_number, Lesson.lesson_number)
         )
     )
@@ -341,8 +387,11 @@ async def update_lesson_progress(
     lesson_id: int,
     update: LessonProgressUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> LessonResponse:
-    lesson = db.get(Lesson, lesson_id)
+    lesson = db.scalar(
+        select(Lesson).where(Lesson.id == lesson_id, Lesson.user_id == user.id)
+    )
     if lesson is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -365,14 +414,17 @@ async def update_lesson_progress(
 async def get_lesson_resources(
     lesson_id: int,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> list[ResourceResponse]:
-    lesson = db.get(Lesson, lesson_id)
+    lesson = db.scalar(
+        select(Lesson).where(Lesson.id == lesson_id, Lesson.user_id == user.id)
+    )
     if lesson is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lesson was not found",
         )
-    profile = _get_profile(db)
+    profile = _get_profile(db, user.id)
     try:
         candidates = await find_resources(lesson, profile)
     except ResourceSearchError as error:
@@ -381,10 +433,14 @@ async def get_lesson_resources(
             detail="Resource search is temporarily unavailable",
         ) from error
 
-    db.query(Resource).filter(Resource.lesson_id == lesson.id).delete()
+    db.query(Resource).filter(
+        Resource.lesson_id == lesson.id,
+        Resource.user_id == user.id,
+    ).delete()
     stored: list[Resource] = []
     for candidate in candidates:
         resource = Resource(
+            user_id=user.id,
             lesson_id=lesson.id,
             title=candidate.title,
             url=candidate.url,
@@ -410,8 +466,12 @@ async def get_lesson_resources(
 
 
 @router.post("/notes", response_model=NoteResponse, tags=["notes"])
-async def create_note(note: NoteRequest, db: Session = Depends(get_db)) -> NoteResponse:
-    stored = Note(**note.model_dump())
+async def create_note(
+    note: NoteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> NoteResponse:
+    stored = Note(user_id=user.id, **note.model_dump())
     db.add(stored)
     db.commit()
     db.refresh(stored)
@@ -419,14 +479,23 @@ async def create_note(note: NoteRequest, db: Session = Depends(get_db)) -> NoteR
 
 
 @router.get("/notes", response_model=list[NoteResponse], tags=["notes"])
-async def list_notes(db: Session = Depends(get_db)) -> list[NoteResponse]:
-    notes = db.scalars(select(Note).order_by(Note.updated_at.desc())).all()
+async def list_notes(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[NoteResponse]:
+    notes = db.scalars(
+        select(Note).where(Note.user_id == user.id).order_by(Note.updated_at.desc())
+    ).all()
     return [NoteResponse.model_validate(note, from_attributes=True) for note in notes]
 
 
 @router.delete("/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["notes"])
-async def delete_note(note_id: int, db: Session = Depends(get_db)) -> None:
-    note = db.get(Note, note_id)
+async def delete_note(
+    note_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    note = db.scalar(select(Note).where(Note.id == note_id, Note.user_id == user.id))
     if note is None:
         raise HTTPException(status_code=404, detail="Note was not found")
     db.delete(note)
@@ -437,8 +506,9 @@ async def delete_note(note_id: int, db: Session = Depends(get_db)) -> None:
 async def create_bookmark(
     bookmark: BookmarkRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> BookmarkResponse:
-    stored = Bookmark(**bookmark.model_dump())
+    stored = Bookmark(user_id=user.id, **bookmark.model_dump())
     db.add(stored)
     db.commit()
     db.refresh(stored)
@@ -446,8 +516,15 @@ async def create_bookmark(
 
 
 @router.get("/bookmarks", response_model=list[BookmarkResponse], tags=["bookmarks"])
-async def list_bookmarks(db: Session = Depends(get_db)) -> list[BookmarkResponse]:
-    bookmarks = db.scalars(select(Bookmark).order_by(Bookmark.created_at.desc())).all()
+async def list_bookmarks(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[BookmarkResponse]:
+    bookmarks = db.scalars(
+        select(Bookmark)
+        .where(Bookmark.user_id == user.id)
+        .order_by(Bookmark.created_at.desc())
+    ).all()
     return [
         BookmarkResponse.model_validate(bookmark, from_attributes=True)
         for bookmark in bookmarks
@@ -459,8 +536,17 @@ async def list_bookmarks(db: Session = Depends(get_db)) -> list[BookmarkResponse
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["bookmarks"],
 )
-async def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)) -> None:
-    bookmark = db.get(Bookmark, bookmark_id)
+async def delete_bookmark(
+    bookmark_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    bookmark = db.scalar(
+        select(Bookmark).where(
+            Bookmark.id == bookmark_id,
+            Bookmark.user_id == user.id,
+        )
+    )
     if bookmark is None:
         raise HTTPException(status_code=404, detail="Bookmark was not found")
     db.delete(bookmark)
@@ -476,8 +562,11 @@ async def submit_quiz(
     lesson_id: int,
     submission: QuizSubmission,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> QuizResult:
-    lesson = db.get(Lesson, lesson_id)
+    lesson = db.scalar(
+        select(Lesson).where(Lesson.id == lesson_id, Lesson.user_id == user.id)
+    )
     if lesson is None:
         raise HTTPException(status_code=404, detail="Lesson was not found")
     questions = json.loads(lesson.quiz_json)
@@ -489,6 +578,7 @@ async def submit_quiz(
         else "This topic may need another explanation. Review the examples and try again."
     )
     attempt = QuizAttempt(
+        user_id=user.id,
         lesson_id=lesson.id,
         score=score,
         total=total,
@@ -506,13 +596,27 @@ async def submit_quiz(
 
 
 @router.get("/progress", response_model=ProgressSummary, tags=["progress"])
-async def get_progress(db: Session = Depends(get_db)) -> ProgressSummary:
-    lessons = list(db.scalars(select(Lesson)))
+async def get_progress(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProgressSummary:
+    lessons = list(db.scalars(select(Lesson).where(Lesson.user_id == user.id)))
     completed = sum(lesson.status == "completed" for lesson in lessons)
-    attempts = list(db.scalars(select(QuizAttempt).order_by(QuizAttempt.created_at.desc())))
+    attempts = list(
+        db.scalars(
+            select(QuizAttempt)
+            .where(QuizAttempt.user_id == user.id)
+            .order_by(QuizAttempt.created_at.desc())
+        )
+    )
     weak_area = None
     if attempts and attempts[0].score < attempts[0].total:
-        lesson = db.get(Lesson, attempts[0].lesson_id)
+        lesson = db.scalar(
+            select(Lesson).where(
+                Lesson.id == attempts[0].lesson_id,
+                Lesson.user_id == user.id,
+            )
+        )
         weak_area = lesson.title if lesson else None
     return ProgressSummary(
         lessons_completed=completed,
@@ -524,9 +628,12 @@ async def get_progress(db: Session = Depends(get_db)) -> ProgressSummary:
 
 
 @router.get("/export", tags=["progress"])
-async def export_data(db: Session = Depends(get_db)) -> Response:
+async def export_data(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
     return Response(
-        content=export_learning_data_json(db),
+        content=export_learning_data_json(db, user.id),
         media_type="application/json",
         headers={"Content-Disposition": 'attachment; filename="tutorai-export.json"'},
     )

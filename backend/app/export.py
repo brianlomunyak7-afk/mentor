@@ -7,11 +7,19 @@ from sqlalchemy.orm import Session
 from app.models import Bookmark, Lesson, LearningPlan, Note
 
 
-def export_learning_data(db: Session) -> dict[str, object]:
-    plans = db.scalars(select(LearningPlan).order_by(LearningPlan.id)).all()
-    lessons = db.scalars(select(Lesson).order_by(Lesson.id)).all()
-    notes = db.scalars(select(Note).order_by(Note.id)).all()
-    bookmarks = db.scalars(select(Bookmark).order_by(Bookmark.id)).all()
+def export_learning_data(db: Session, user_id: int) -> dict[str, object]:
+    plans = db.scalars(
+        select(LearningPlan).where(LearningPlan.user_id == user_id).order_by(LearningPlan.id)
+    ).all()
+    lessons = db.scalars(
+        select(Lesson).where(Lesson.user_id == user_id).order_by(Lesson.id)
+    ).all()
+    notes = db.scalars(
+        select(Note).where(Note.user_id == user_id).order_by(Note.id)
+    ).all()
+    bookmarks = db.scalars(
+        select(Bookmark).where(Bookmark.user_id == user_id).order_by(Bookmark.id)
+    ).all()
     return {
         "exported_at": datetime.now().isoformat(),
         "plans": [
@@ -38,5 +46,5 @@ def export_learning_data(db: Session) -> dict[str, object]:
     }
 
 
-def export_learning_data_json(db: Session) -> str:
-    return json.dumps(export_learning_data(db), indent=2)
+def export_learning_data_json(db: Session, user_id: int) -> str:
+    return json.dumps(export_learning_data(db, user_id), indent=2)
