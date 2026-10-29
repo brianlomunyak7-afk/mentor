@@ -1,0 +1,14 @@
+.env
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+.pytest_cache/
+.venv/
+*.egg-info/
+frontend/node_modules/
+frontend/dist/
+backend/.coverage
+.coverage
+.mypy_cache/
+.ruff_cache/
