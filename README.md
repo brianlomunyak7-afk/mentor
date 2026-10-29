@@ -9,12 +9,15 @@ track progress.
 This phase provides:
 
 - A FastAPI backend with a health endpoint.
+- A local SQLite learner profile with Alembic migrations.
+- One-question-at-a-time onboarding and editable profile endpoints.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
 - A Makefile for setup and local commands.
 
-Feature work is intentionally added in later phases.
+TutorAI stores onboarding answers locally in SQLite. Preferences are stored as
+adjustable profile data, not as permanent learning-style labels.
 
 ## Setup
 
@@ -32,6 +35,12 @@ cp .env.example .env
 ```
 
 No API keys are needed to run the Phase 2 foundation.
+
+Initialize the Phase 3 database after setup:
+
+```bash
+make migrate
+```
 
 ## Run locally
 
@@ -51,6 +60,13 @@ URLs:
 - API: http://localhost:8000
 - API docs: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
+
+Phase 3 API endpoints:
+
+- `GET /api/onboarding/questions` — return the next onboarding question.
+- `POST /api/onboarding/answers` — save one answer and advance one step.
+- `GET /api/profile` — return the saved learner profile.
+- `PUT /api/profile` — edit profile fields and preferences.
 
 ## Test
 
