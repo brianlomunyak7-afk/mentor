@@ -11,6 +11,8 @@ This phase provides:
 - A FastAPI backend with a health endpoint.
 - A local SQLite learner profile with Alembic migrations.
 - One-question-at-a-time onboarding and editable profile endpoints.
+- A provider-neutral async LLM interface with Anthropic Claude and Google
+  Gemini adapters.
 - A React + TypeScript + Vite frontend shell.
 - Python pytest and frontend Vitest test runners.
 - A `.env.example` file for future provider and resource credentials.
@@ -34,7 +36,26 @@ make setup
 cp .env.example .env
 ```
 
-No API keys are needed to run the Phase 2 foundation.
+No API keys are needed to run the local foundation without model calls.
+
+To use the Phase 4 model providers, set `LLM_PROVIDER` and the matching API
+key in `.env`. The provider factory rejects missing keys and unsupported
+provider names rather than silently selecting a fallback.
+
+```env
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your-key
+```
+
+Or:
+
+```env
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your-key
+```
+
+The adapters are not called by the onboarding routes yet; tutor orchestration
+will be added in the next phase.
 
 Initialize the Phase 3 database after setup:
 
